@@ -9,6 +9,9 @@
 // @grant        GM_webRequest
 // ==/UserScript==
 
+let cancelXpFarm = false;
+let firstGuess = true;
+
 window.alert = function (message) { // Devs tried to overwrite alert to detect script. I had already stopped using alert, but i'd rather they didn't override this anyway.
     nativeAlert(message)
 };
@@ -45,7 +48,7 @@ function displayLocationInfo() {
 
 }
 
-function placeMarker(safeMode, skipGet, coords) {
+function placeMarker(safeMode, skipGet, coords, xpMode) {
     const isPanic = document.getElementsByClassName("coordinate-map_canvasContainer__7d8Yw")[0]
     if(isPanic){panicPlaceMarker(isPanic); return;}
     const isStreaks = document.getElementsByClassName("guess-map__canvas-container")[0] === undefined
@@ -58,7 +61,8 @@ function placeMarker(safeMode, skipGet, coords) {
 
     if (safeMode) {
         const sway = [Math.random() > 0.5,Math.random() > 0.5]
-        const multiplier = Math.random() * 4
+        const multiplier = xpMode ? Math.random() * 6 : Math.random() * 4
+        console.log(multiplier)
         const horizontalAmount = Math.random() * multiplier
         const verticalAmount = Math.random() * multiplier
         sway[0] ? lat += verticalAmount : lat -= verticalAmount
@@ -209,6 +213,31 @@ function getGuessDistance(manual) {
     return distance
 }
 
+function xpFarm(guessDelay, buttonTime) {
+    if (!cancelXpFarm) {
+        setInterval(() => {
+            if (firstGuess) {
+                placeMarker(true, false, undefined, true);
+                firstGuess = false;
+            }
+    
+            setInterval(() => {
+                const button = document.querySelector('[data-qa="close-round-result"]');
+                if (button) {
+                    firstGuess = true;
+                    button.click();
+                }
+                setInterval(() => {
+                    const playAgainButton = document.querySelector('[data-qa="play-again-button"]');
+                    if (playAgainButton) {
+                        playAgainButton.click();
+                    }
+                }, buttonTime * 1000)
+            }, buttonTime * 1000)
+        }, guessDelay * 1000);
+    }
+}
+
 function displayDistanceFromCorrect(manual) {
     let unRoundedDistance = getGuessDistance(manual) // need unrounded distance for precise calculations later.
     let distance = Math.round(unRoundedDistance)
@@ -325,11 +354,11 @@ GM_webRequest([
 let onKeyDown = (e) => {
     if (e.keyCode === 49) {
         e.stopImmediatePropagation(); // tries to prevent the key from being hijacked by geoguessr
-        placeMarker(true, false, undefined)
+        placeMarker(true, false, undefined, false)
     }
     if (e.keyCode === 50) {
         e.stopImmediatePropagation();
-        placeMarker(false, false, undefined)
+        placeMarker(false, false, undefined, false)
     }
     if (e.keyCode === 51) {
         e.stopImmediatePropagation();
@@ -342,6 +371,26 @@ let onKeyDown = (e) => {
     if (e.keyCode === 53) {
         e.stopImmediatePropagation();
         displayBRGuesses()
+    }
+    if (e.keyCode === 54) {
+        e.stopImmediatePropagation();
+        let roundTime = parseInt(prompt("Enter length of round in seconds"))
+        let minGuessDelay = parseInt(roundTime - 12);
+        let maxGuessDelay = parseInt(roundTime - 3);
+        let guessDelay = parseInt(Math.floor(Math.random() * (maxGuessDelay - minGuessDelay + 1) + minGuessDelay));
+        let buttonTime = parseInt(Math.floor(Math.random() * (4 - 2 + 1) + 2));
+        setTimeout(() => {
+            xpFarm(guessDelay, buttonTime);
+        }, 2000);
+    }
+    if (e.keyCode === 55) {
+        e.stopImmediatePropagation();
+        if (!cancelXpFarm) {
+            alert("XP Farm Currently Not Running");
+        } else {
+            alert("Terminating XP Farm");
+            cancelXpFarm = true;
+        }
     }
 }
 setInnerText()
